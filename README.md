@@ -1,6 +1,6 @@
-# Shape Digital <> Jordan
+# Shape - Jordan
 
-Olá, este é o resultado do meu teste técnico para a Shape Digital. Que consiste na criação de um pipeline de dados para
+Esse projeto consiste na criação de um pipeline de dados para
 processamento de dados de sensores em equipamentos.
 
 ## Arquitetura dos arquivos
@@ -28,7 +28,7 @@ processamento de dados de sensores em equipamentos.
 ## Descrição da solução
 O atual projeto foi realizado em ambiente de nuvem GCP. Por esse motivo, são utilizados serviços como Bigquery, GCS e Dataproc. A escolha do GCP foi por familiaridade e também devido à facilidade de configuração de serviços se comparado a um ambiente local (o que foi presumido não ser o core do teste).
 
-![image](res\architecture.jpeg)
+![image](https://github.com/JordanAmaralVicente/shape/blob/2b77b38fe83a654ddec0cf952f26ffce68b5053b/res/architecture.jpeg)
 
 Quanto às especificadades de cada camada:
 
@@ -37,14 +37,14 @@ Para os arquivos originais, a única mudança realizada foi a troca do arquivo J
 Para a camada de dados processados, o único dado que exigiu mais tratamento foi o arquivo de logs com os dados dos sensores. Para ele, foram feitas transformações para tratar converter data para formato únic, remover id do sensor entre caracteres, e buscar as informações de temperatura e vibração.
 
 Para a última camada, foi escolhido uma modelagem de star-schema no seguinte modelo:
-![img](res\relation.png)
+![img](https://github.com/JordanAmaralVicente/shape/blob/2b77b38fe83a654ddec0cf952f26ffce68b5053b/res/relation.png)
 
 E aqui vale alguns destaques:
 - escolhi manter o log_type na fato pois não havia descritivos suficientes para criar uma dimensal única de log type
 - log_datetime foi mantido em datetime, mas a tabela está particionada internamente no bigquery por date referente ao datetime
 - A tabela de relação ficou mantida apenas na etapa anterior que serviu de enriquemente para os dados de log (coluna asset_id)
 
-![](res\database.png)
+![img](https://github.com/JordanAmaralVicente/shape/blob/2b77b38fe83a654ddec0cf952f26ffce68b5053b/res/database.png)
 
 ## Soluções
 Arquivo de soluções também presente na raíz do projeto

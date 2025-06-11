@@ -1,53 +1,81 @@
 # Shape - Jordan
 
-Esse projeto consiste na criação de um pipeline de dados para
-processamento de dados de sensores em equipamentos.
+This project implements a robust data pipeline for processing sensor data from industrial equipment, designed to run entirely within the Google Cloud Platform (GCP) ecosystem.
+Leveraging services like BigQuery, Cloud Storage (GCS), and Dataproc, the pipeline transforms raw sensor logs into a structured, queryable format for analytics and insights into equipment failures.
 
-## Arquitetura dos arquivos
+## Project Files
 ```
-* answers.sql
-+ data/
-    - question_4.csv
-    - question_4_cap.csv
-+ database/
-    - schemas.sql
-+ pipe/
-    + airflow/
-        - equipments_dag.py
-        - sensors_failures_dag.py
-    + spark/
-        + gold/
-            - dm_assets.py
-            - fact_sensors_logs.py
-        + silver/
-            - equipment_failure_sensors.py
-            - equipment_sensors_relation.py
-            - equipments.py
+├── answers.sql
+├── data/
+│   ├── question_4.csv
+│   └── question_4_cap.csv
+├── database/
+│   └── schemas.sql
+├── pipe/
+│   ├── airflow/
+│   │   ├── equipments_dag.py
+│   │   └── sensors_failures_dag.py
+│   └── spark/
+│       ├── gold/
+│       │   ├── dm_assets.py
+│       │   └── fact_sensors_logs.py
+│       └── silver/
+│           ├── equipment_failure_sensors.py
+│           ├── equipment_sensors_relation.py
+│           └── equipments.py
+└── res/
+    ├── architecture.jpeg
+    ├── relation.png
+    └── database.png
 ```
 
-## Descrição da solução
-O atual projeto foi realizado em ambiente de nuvem GCP. Por esse motivo, são utilizados serviços como Bigquery, GCS e Dataproc. A escolha do GCP foi por familiaridade e também devido à facilidade de configuração de serviços se comparado a um ambiente local (o que foi presumido não ser o core do teste).
+## Architecture
+The solution follows a multi-layered architecture, typical for data warehousing, consisting of:
+Raw Data Layer: Ingests raw data from various sources.
+Silver Layer: Processes and cleanses the raw data, applying initial transformations.
+Gold Layer: Stores highly curated and modeled data, optimized for analytical queries.
+The pipeline is orchestrated using Apache Airflow (Running on Cloud Composer), with data processing handled by PySpark jobs executed on Dataproc.
 
 ![image](https://github.com/JordanAmaralVicente/shape/blob/2b77b38fe83a654ddec0cf952f26ffce68b5053b/res/architecture.jpeg)
 
-Quanto às especificadades de cada camada:
+### Raw Layer
+- Original files were mostly preserved.
+- The only change was converting a JSON array into a JSON Lines (JSONL) format, where each line is an individual object.
 
-Para os arquivos originais, a única mudança realizada foi a troca do arquivo JSON/ARRAY para JSONL em que cada linha representa um objeto diferente. Além disso, nenhuma outra mudança relevante foi realizada.
+### Silver Layer
+`equipment_failure_sensors.py`: This PySpark script processes raw sensor failure logs. It performs critical transformations including:
+- Extracting and merging sensor-related fields (e.g., temperature and vibration values).
+- Cleaning and extracting numeric sensor codes and log dates from nested strings.
+- Handling 'err' values in sensor readings by converting them to NULL.
+- Standardizing date formats to YYYY-MM-DD HH:mm:ss.
+- Casting data types for numerical and date fields.
+- The processed data is stored in silver.tbl_equipment_failure_sensors in BigQuery.
 
-Para a camada de dados processados, o único dado que exigiu mais tratamento foi o arquivo de logs com os dados dos sensores. Para ele, foram feitas transformações para tratar converter data para formato únic, remover id do sensor entre caracteres, e buscar as informações de temperatura e vibração.
+`equipment_sensors_relation.py`: This PySpark script processes the relationship between equipment and sensors from a CSV file.
+- It reads equipment_sensors.csv.
+- It prepares the data by selecting equipment_id and sensor_id.
+- The processed data is stored in silver.tbl_equipment_sensors_relation in BigQuery.
 
-Para a última camada, foi escolhido uma modelagem de star-schema no seguinte modelo:
+`equipments.py`: This PySpark script processes raw equipment data from a JSON file.
+- It reads equipment.json.
+- It prepares the data by selecting equipment_id, name, and group_name.
+- The processed data is stored in silver.tbl_equipments in BigQuery.
+
+### Gold Layer
+- A star schema was implemented with a central fact table and supporting dimensions:
+`fact_sensors_logs`
+- log_type remains in the fact table due to insufficient description for a dimension.
+- log_datetime is stored as a timestamp, but the BigQuery table is partitioned by date.
+- The relationship table is kept only in the silver layer as enrichment
+
+After the dimensional modelling we have the following diagram:
 ![img](https://github.com/JordanAmaralVicente/shape/blob/2b77b38fe83a654ddec0cf952f26ffce68b5053b/res/relation.png)
 
-E aqui vale alguns destaques:
-- escolhi manter o log_type na fato pois não havia descritivos suficientes para criar uma dimensal única de log type
-- log_datetime foi mantido em datetime, mas a tabela está particionada internamente no bigquery por date referente ao datetime
-- A tabela de relação ficou mantida apenas na etapa anterior que serviu de enriquemente para os dados de log (coluna asset_id)
 
 ![img](https://github.com/JordanAmaralVicente/shape/blob/2b77b38fe83a654ddec0cf952f26ffce68b5053b/res/database.png)
 
-## Soluções
-Arquivo de soluções também presente na raíz do projeto
+## Solutions
+All query answers can be found in answers.sql.
 
 ### 1st question
 > How many equipment failures happened?
@@ -60,7 +88,7 @@ WHERE
   fact.log_type = 'ERROR'
 ;
 ```
-Resultado:
+Result:
 | qt |
 |--- |
 | 4.749.475 |
@@ -83,7 +111,7 @@ ORDER BY qt_failures DESC
 LIMIT 1
 ;
 ```
-Resultado:
+Result:
 |qt_failures|asset_id|name|group_name|
 |---|---|---|---|
 |343800|14|2C195700|VAPQY59S|
@@ -103,7 +131,7 @@ WHERE
 GROUP BY dm.group_name
 ORDER BY COUNT(*) ASC
 ```
-Resultado:
+Result:
 |avg_failures_per_asset|group_name|
 |---|---|
 |340549.0|Z9K1SAP4|
@@ -141,4 +169,4 @@ INNER JOIN `gold.dm_assets` dm ON failures_per_sensor.asset_id = dm.asset_id
 ORDER BY failures_per_sensor.asset_id, rnk
 ;
 ```
-Resultado: `data/question_4.csv`
+Result at: `data/question_4.csv`
